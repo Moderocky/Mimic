@@ -5,6 +5,7 @@ import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
@@ -14,16 +15,16 @@ import java.util.Set;
 
 import static org.objectweb.asm.Opcodes.*;
 
-class MimicGenerator {
+public class MimicGenerator {
     
-    final ClassWriter writer;
-    final String internal;
-    final Class<?> top;
-    final Class<?>[] interfaces;
-    final List<MethodErasure> finished;
+    protected final ClassWriter writer;
+    protected final String internal;
+    protected final Class<?> top;
+    protected final Class<?>[] interfaces;
+    protected final List<MethodErasure> finished;
     protected int index;
     
-    public MimicGenerator(String location, Class<?> top, Class<?>... interfaces) {
+    protected MimicGenerator(String location, Class<?> top, Class<?>... interfaces) {
         this.writer = new ClassWriter(0);
         this.internal = location;
         this.top = top;
@@ -31,22 +32,34 @@ class MimicGenerator {
         this.finished = new ArrayList<>();
     }
     
+    protected long offset(final Field field) {
+        return InternalAccess.offset(field);
+    }
+    
+    protected void putValue(final Object object, final long offset, final Object value) {
+        InternalAccess.put(object, offset, value);
+    }
+    
+    protected Object allocateInstance(Class<?> type) {
+        return InternalAccess.allocateInstance(type);
+    }
+    
     public <Template> Template create(ClassLoader loader, MethodExecutor executor) {
         final boolean complex = !top.isInterface();
         final byte[] bytecode = writeCode();
         final Class<?> type = InternalAccess.loadClass(loader, internal.replace('/', '.'), bytecode);
-        final Object object = InternalAccess.allocateInstance(type);
+        final Object object = this.allocateInstance(type);
         if (complex) {
             try {
-                final long exec = InternalAccess.offset(object.getClass().getDeclaredField("executor"));
-                final long meth = InternalAccess.offset(object.getClass().getDeclaredField("methods"));
-                InternalAccess.put(object, exec, executor);
-                InternalAccess.put(object, meth, finished.toArray(new MethodErasure[0]));
+                final long exec = this.offset(object.getClass().getDeclaredField("executor"));
+                final long meth = this.offset(object.getClass().getDeclaredField("methods"));
+                this.putValue(object, exec, executor);
+                this.putValue(object, meth, finished.toArray(new MethodErasure[0]));
             } catch (NoSuchFieldException ignored) {
             }
         } else {
-            InternalAccess.put(object, 12, executor);
-            InternalAccess.put(object, 16, finished.toArray(new MethodErasure[0]));
+            this.putValue(object, 12, executor);
+            this.putValue(object, 16, finished.toArray(new MethodErasure[0]));
         }
         return (Template) object;
     }
@@ -179,7 +192,7 @@ class MimicGenerator {
         return primitive;
     }
     
-    private void unbox(MethodVisitor visitor, Class<?> parameter) {
+    protected void unbox(MethodVisitor visitor, Class<?> parameter) {
         if (parameter == byte.class)
             visitor.visitMethodInsn(INVOKEVIRTUAL, Type.getInternalName(Byte.class), "byteValue", "()B", false);
         if (parameter == short.class)
@@ -196,7 +209,7 @@ class MimicGenerator {
             visitor.visitMethodInsn(INVOKEVIRTUAL, Type.getInternalName(Boolean.class), "booleanValue", "()Z", false);
     }
     
-    void box(MethodVisitor visitor, Class<?> value) {
+    protected void box(MethodVisitor visitor, Class<?> value) {
         if (value == byte.class)
             visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Byte.class), "valueOf", "(B)Ljava/lang/Byte;", false);
         if (value == short.class)

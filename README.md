@@ -8,9 +8,9 @@ A replacement candidate for Java's Proxy API. Allows the creation of 'mimicked' 
 ## Maven Information
 ```xml
 <repository>
-    <id>pan-repo</id>
-    <name>Pandaemonium Repository</name>
-    <url>https://gitlab.com/api/v4/projects/18568066/packages/maven</url>
+    <id>kenzie</id>
+    <name>Kenzie's Repository</name>
+    <url>https://repo.kenzie.mx/releases</url>
 </repository>
 ``` 
 

@@ -9,11 +9,11 @@ import java.security.ProtectionDomain;
 @SuppressWarnings("removal")
 class InternalAccess {
     
+    static final String LOCATION = "com.sun.proxy";
     static Object javaLangAccess;
     static Unsafe unsafe;
     static Method defineClass;
     static Method addExports0;
-    static final String LOCATION = "com.sun.proxy";
     
     static {
         try {

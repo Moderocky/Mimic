@@ -24,6 +24,12 @@ public class MimicTest {
     @Test
     public void basic() {
         
+        interface Blob {
+            void bean(int i);
+            
+            String say(String word);
+        }
+        
         class Box {
             
             public String doSomething(String word) {
@@ -34,12 +40,6 @@ public class MimicTest {
                 return "goodbye";
             }
             
-        }
-        
-        interface Blob {
-            void bean(int i);
-            
-            String say(String word);
         }
         
         final Blob blob = Mimic.create((proxy, method, arguments) -> arguments[0], Blob.class);

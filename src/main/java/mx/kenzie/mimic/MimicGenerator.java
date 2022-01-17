@@ -17,13 +17,13 @@ import static org.objectweb.asm.Opcodes.*;
 
 public class MimicGenerator {
     
+    private static volatile int counter;
     protected final ClassWriter writer;
     protected final String internal;
     protected final Class<?> top;
     protected final Class<?>[] interfaces;
     protected final List<MethodErasure> finished;
     protected int index;
-    
     protected MimicGenerator(String location, Class<?> top, Class<?>... interfaces) {
         this.writer = new ClassWriter(0);
         this.internal = location;
@@ -32,16 +32,8 @@ public class MimicGenerator {
         this.finished = new ArrayList<>();
     }
     
-    protected long offset(final Field field) {
-        return InternalAccess.offset(field);
-    }
-    
-    protected void putValue(final Object object, final long offset, final Object value) {
-        InternalAccess.put(object, offset, value);
-    }
-    
-    protected Object allocateInstance(Class<?> type) {
-        return InternalAccess.allocateInstance(type);
+    static synchronized int count() {
+        return counter++;
     }
     
     public <Template> Template create(ClassLoader loader, MethodExecutor executor) {
@@ -89,6 +81,18 @@ public class MimicGenerator {
         }
         writer.visitEnd();
         return writer.toByteArray();
+    }
+    
+    protected Object allocateInstance(Class<?> type) {
+        return InternalAccess.allocateInstance(type);
+    }
+    
+    protected long offset(final Field field) {
+        return InternalAccess.offset(field);
+    }
+    
+    protected void putValue(final Object object, final long offset, final Object value) {
+        InternalAccess.put(object, offset, value);
     }
     
     protected String[] getInterfaces() {
@@ -148,36 +152,40 @@ public class MimicGenerator {
         visitor.visitEnd();
     }
     
-    //region Utilities
-    protected void doTypeConversion(MethodVisitor visitor, Class<?> from, Class<?> to) {
-        if (from == to) return;
-        if (from == void.class || to == void.class) return;
-        if (from.isPrimitive() && to.isPrimitive()) {
-            final int opcode;
-            if (from == float.class) {
-                if (to == double.class) opcode = F2D;
-                else if (to == long.class) opcode = F2L;
-                else opcode = F2I;
-            } else if (from == double.class) {
-                if (to == float.class) opcode = D2F;
-                else if (to == long.class) opcode = D2L;
-                else opcode = D2I;
-            } else if (from == long.class) {
-                if (to == float.class) opcode = L2F;
-                else if (to == double.class) opcode = L2D;
-                else opcode = L2I;
-            } else {
-                if (to == float.class) opcode = I2F;
-                else if (to == double.class) opcode = I2D;
-                else if (to == byte.class) opcode = I2B;
-                else if (to == short.class) opcode = I2S;
-                else if (to == char.class) opcode = I2C;
-                else opcode = I2L;
-            }
-            visitor.visitInsn(opcode);
-        } else if (from.isPrimitive() ^ to.isPrimitive()) {
-            throw new IllegalArgumentException("Type wrapping is currently unsupported due to side-effects: '" + from.getSimpleName() + "' -> '" + to.getSimpleName() + "'");
-        } else visitor.visitTypeInsn(CHECKCAST, Type.getInternalName(to));
+    protected int instructionOffset(Class<?> type) {
+        if (type == int.class) return 1;
+        if (type == boolean.class) return 1;
+        if (type == byte.class) return 1;
+        if (type == short.class) return 1;
+        if (type == long.class) return 2;
+        if (type == float.class) return 3;
+        if (type == double.class) return 4;
+        if (type == void.class) return 6;
+        return 5;
+    }
+    
+    protected void box(MethodVisitor visitor, Class<?> value) {
+        if (value == byte.class)
+            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Byte.class), "valueOf", "(B)Ljava/lang/Byte;", false);
+        if (value == short.class)
+            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Short.class), "valueOf", "(S)Ljava/lang/Short;", false);
+        if (value == int.class)
+            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Integer.class), "valueOf", "(I)Ljava/lang/Integer;", false);
+        if (value == long.class)
+            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Long.class), "valueOf", "(J)Ljava/lang/Long;", false);
+        if (value == float.class)
+            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Float.class), "valueOf", "(F)Ljava/lang/Float;", false);
+        if (value == double.class)
+            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Double.class), "valueOf", "(D)Ljava/lang/Double;", false);
+        if (value == boolean.class)
+            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Boolean.class), "valueOf", "(Z)Ljava/lang/Boolean;", false);
+        if (value == void.class)
+            visitor.visitInsn(ACONST_NULL);
+    }
+    
+    protected int wideIndexOffset(Class<?> thing) {
+        if (thing == long.class || thing == double.class) return 1;
+        return 0;
     }
     
     protected Class<?> getWrapperType(Class<?> primitive) {
@@ -209,25 +217,6 @@ public class MimicGenerator {
             visitor.visitMethodInsn(INVOKEVIRTUAL, Type.getInternalName(Boolean.class), "booleanValue", "()Z", false);
     }
     
-    protected void box(MethodVisitor visitor, Class<?> value) {
-        if (value == byte.class)
-            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Byte.class), "valueOf", "(B)Ljava/lang/Byte;", false);
-        if (value == short.class)
-            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Short.class), "valueOf", "(S)Ljava/lang/Short;", false);
-        if (value == int.class)
-            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Integer.class), "valueOf", "(I)Ljava/lang/Integer;", false);
-        if (value == long.class)
-            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Long.class), "valueOf", "(J)Ljava/lang/Long;", false);
-        if (value == float.class)
-            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Float.class), "valueOf", "(F)Ljava/lang/Float;", false);
-        if (value == double.class)
-            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Double.class), "valueOf", "(D)Ljava/lang/Double;", false);
-        if (value == boolean.class)
-            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Boolean.class), "valueOf", "(Z)Ljava/lang/Boolean;", false);
-        if (value == void.class)
-            visitor.visitInsn(ACONST_NULL);
-    }
-    
     protected int wideIndexOffset(Class<?>[] params, Class<?> ret) {
         int i = 0;
         for (Class<?> param : params) {
@@ -236,21 +225,36 @@ public class MimicGenerator {
         return Math.max(i, wideIndexOffset(ret));
     }
     
-    protected int wideIndexOffset(Class<?> thing) {
-        if (thing == long.class || thing == double.class) return 1;
-        return 0;
-    }
-    
-    protected int instructionOffset(Class<?> type) {
-        if (type == int.class) return 1;
-        if (type == boolean.class) return 1;
-        if (type == byte.class) return 1;
-        if (type == short.class) return 1;
-        if (type == long.class) return 2;
-        if (type == float.class) return 3;
-        if (type == double.class) return 4;
-        if (type == void.class) return 6;
-        return 5;
+    //region Utilities
+    protected void doTypeConversion(MethodVisitor visitor, Class<?> from, Class<?> to) {
+        if (from == to) return;
+        if (from == void.class || to == void.class) return;
+        if (from.isPrimitive() && to.isPrimitive()) {
+            final int opcode;
+            if (from == float.class) {
+                if (to == double.class) opcode = F2D;
+                else if (to == long.class) opcode = F2L;
+                else opcode = F2I;
+            } else if (from == double.class) {
+                if (to == float.class) opcode = D2F;
+                else if (to == long.class) opcode = D2L;
+                else opcode = D2I;
+            } else if (from == long.class) {
+                if (to == float.class) opcode = L2F;
+                else if (to == double.class) opcode = L2D;
+                else opcode = L2I;
+            } else {
+                if (to == float.class) opcode = I2F;
+                else if (to == double.class) opcode = I2D;
+                else if (to == byte.class) opcode = I2B;
+                else if (to == short.class) opcode = I2S;
+                else if (to == char.class) opcode = I2C;
+                else opcode = I2L;
+            }
+            visitor.visitInsn(opcode);
+        } else if (from.isPrimitive() ^ to.isPrimitive()) {
+            throw new IllegalArgumentException("Type wrapping is currently unsupported due to side-effects: '" + from.getSimpleName() + "' -> '" + to.getSimpleName() + "'");
+        } else visitor.visitTypeInsn(CHECKCAST, Type.getInternalName(to));
     }
     //endregion
     

@@ -15,14 +15,14 @@ public record MethodErasure(Class<?> owner, String name, Class<?>... parameters)
         this(method.getDeclaringClass(), method.getName(), method.getParameterTypes());
     }
     
-    public Method reflect()
-        throws NoSuchMethodException {
-        return owner.getDeclaredMethod(name, parameters);
-    }
-    
     public MethodHandle handle()
         throws NoSuchMethodException, IllegalAccessException {
         return MethodHandles.lookup().unreflect(reflect());
+    }
+    
+    public Method reflect()
+        throws NoSuchMethodException {
+        return owner.getDeclaredMethod(name, parameters);
     }
     
     @Override

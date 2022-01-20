@@ -61,6 +61,7 @@ class InternalAccess {
         }
     }
     
+    @SuppressWarnings("unchecked")
     static <Type> Type allocateInstance(Class<?> type) {
         try {
             return (Type) unsafe.allocateInstance(type);

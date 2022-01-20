@@ -1,5 +1,6 @@
 package mx.kenzie.mimic;
 
+import java.io.Serializable;
 import java.lang.constant.Constable;
 import java.lang.constant.ConstantDesc;
 import java.lang.invoke.MethodHandle;
@@ -9,7 +10,7 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
 
-public record MethodErasure(Class<?> owner, String name, Class<?>... parameters) implements Constable {
+public record MethodErasure(Class<?> owner, String name, Class<?>... parameters) implements Constable, Serializable {
     
     public MethodErasure(Method method) {
         this(method.getDeclaringClass(), method.getName(), method.getParameterTypes());

@@ -1,7 +1,6 @@
 package mx.kenzie.mimic;
 
 import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.FieldVisitor;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 
@@ -24,6 +23,7 @@ public class MimicGenerator {
     protected final Class<?>[] interfaces;
     protected final List<MethodErasure> finished;
     protected int index;
+    
     protected MimicGenerator(String location, Class<?> top, Class<?>... interfaces) {
         this.writer = new ClassWriter(0);
         this.internal = location;
@@ -36,6 +36,7 @@ public class MimicGenerator {
         return counter++;
     }
     
+    @SuppressWarnings("unchecked")
     public <Template> Template create(ClassLoader loader, MethodExecutor executor) {
         final boolean complex = !top.isInterface();
         final byte[] bytecode = writeCode();
@@ -57,29 +58,12 @@ public class MimicGenerator {
     }
     
     protected byte[] writeCode() {
-        writer.visit(61, 1 | 16 | 32, internal, null, Type.getInternalName(top != null && !top.isInterface() ? top : Object.class), this.getInterfaces());
-        executor:
-        {
-            final FieldVisitor visitor = writer.visitField(0, "executor", "Lmx/kenzie/mimic/MethodExecutor;", null, null);
-            visitor.visitEnd();
-        }
-        method_list:
-        {
-            final FieldVisitor visitor = writer.visitField(0, "methods", "[Lmx/kenzie/mimic/MethodErasure;", null, null);
-            visitor.visitEnd();
-        }
-        super_methods:
-        {
-            if (top == null || top == Object.class) break super_methods;
-            this.scrapeMethods(top);
-        }
-        interface_methods:
-        {
-            for (final Class<?> template : interfaces) {
-                this.scrapeMethods(template);
-            }
-        }
-        writer.visitEnd();
+        this.writer.visit(61, 1 | 16 | 32, internal, null, Type.getInternalName(top != null && !top.isInterface() ? top : Object.class), this.getInterfaces());
+        this.writer.visitField(0, "executor", "Lmx/kenzie/mimic/MethodExecutor;", null, null).visitEnd();
+        this.writer.visitField(0, "methods", "[Lmx/kenzie/mimic/MethodErasure;", null, null);
+        if (top != null && top != Object.class) this.scrapeMethods(top);
+        for (final Class<?> template : interfaces) this.scrapeMethods(template);
+        this.writer.visitEnd();
         return writer.toByteArray();
     }
     
@@ -111,9 +95,9 @@ public class MimicGenerator {
             if (Modifier.isPrivate(method.getModifiers())) continue;
             final MethodErasure erasure = new MethodErasure(method);
             if (finished.contains(erasure)) continue;
-            finished.add(erasure);
+            this.finished.add(erasure);
             this.writeCaller(method);
-            index++;
+            this.index++;
         }
     }
     

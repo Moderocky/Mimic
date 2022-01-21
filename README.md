@@ -18,7 +18,7 @@ A replacement candidate for Java's Proxy API. Allows the creation of 'mimicked' 
 <dependency>
     <groupId>mx.kenzie</groupId>
     <artifactId>mimic</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     <scope>compile</scope>
 </dependency>
 ```
@@ -33,6 +33,9 @@ By using my *Weapons of Disorder*, Mimic is able to access some of these interna
 Mimic allows the superficial creation of any (non-final) type, with user-provided method behaviour. Unlike Java proxies, Mimic is not limited only to interfaces and allows superclasses to be used as well. No reflection is used during method-calling.
 
 This is effected by writing a class at runtime which adapts all the available methods to call a user-provided invoker system very similar to Java's proxy handler but without using a reflection object to increase speed and reliability.
+
+Mimic also comes with some tools for building more advanced proxy behaviour, such as forwarding specific methods directly to objects (or object-suppliers), mapping methods to individual executors or simply not implementing a method at all.
+While the resulting behaviour is achievable with the JDK's Proxy, it will be significantly slower as Mimic bakes the access route directly into the compiled code for maximum efficiency.
 
 ## Examples
 
@@ -68,5 +71,28 @@ interface Bob {
 
 final Alice alice = Mimic.create(executor, Alice.class, Bob.class);
 assert alice instanceof Bob;
+```
+
+Forwarding calls to an object:
+```java 
+interface Thing {
+    int bean(int i);
+    
+    String say(String word);
+}
+
+class Box {
+    public int bean(int i) {
+        return 0;
+    }
+    
+    public String say(String word) {
+        return "hello";
+    }
+}
+    
+final Thing thing = Mimic.create(Thing.class).forward(new Box()).build();
+assert !(thing instanceof Box); // not a Box
+assert thing.bean(3) == 0; // forwarded call to the new Box()
 ```
 

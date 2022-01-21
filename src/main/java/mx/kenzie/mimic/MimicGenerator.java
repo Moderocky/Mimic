@@ -1,18 +1,12 @@
 package mx.kenzie.mimic;
 
 import org.objectweb.asm.ClassWriter;
-import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-
-import static org.objectweb.asm.Opcodes.*;
+import java.util.*;
 
 public class MimicGenerator {
     
@@ -22,9 +16,17 @@ public class MimicGenerator {
     protected final Class<?> top;
     protected final Class<?>[] interfaces;
     protected final List<MethodErasure> finished;
+    protected final MethodWriter handler;
+    protected final Map<MethodErasure, MethodWriter> overrides = new HashMap<>();
+    protected final Map<FieldErasure, Object> fields = new HashMap<>();
     protected int index;
     
     protected MimicGenerator(String location, Class<?> top, Class<?>... interfaces) {
+        this(new MethodWriter(), location, top, interfaces);
+    }
+    
+    protected MimicGenerator(MethodWriter handler, String location, Class<?> top, Class<?>... interfaces) {
+        this.handler = handler;
         this.writer = new ClassWriter(0);
         this.internal = location;
         this.top = top;
@@ -38,12 +40,16 @@ public class MimicGenerator {
     
     @SuppressWarnings("unchecked")
     public <Template> Template create(ClassLoader loader, MethodExecutor executor) {
-        final boolean complex = !top.isInterface();
+        final boolean complex = !top.isInterface() || !overrides.isEmpty() || !fields.isEmpty();
         final byte[] bytecode = writeCode();
         final Class<?> type = InternalAccess.loadClass(loader, internal.replace('/', '.'), bytecode);
         final Object object = this.allocateInstance(type);
         if (complex) {
             try {
+                for (Map.Entry<FieldErasure, Object> entry : fields.entrySet()) {
+                    final long offset = this.offset(object.getClass().getDeclaredField(entry.getKey().name()));
+                    this.putValue(object, offset, entry.getValue());
+                }
                 final long exec = this.offset(object.getClass().getDeclaredField("executor"));
                 final long meth = this.offset(object.getClass().getDeclaredField("methods"));
                 this.putValue(object, exec, executor);
@@ -60,7 +66,10 @@ public class MimicGenerator {
     protected byte[] writeCode() {
         this.writer.visit(61, 1 | 16 | 32, internal, null, Type.getInternalName(top != null && !top.isInterface() ? top : Object.class), this.getInterfaces());
         this.writer.visitField(0, "executor", "Lmx/kenzie/mimic/MethodExecutor;", null, null).visitEnd();
-        this.writer.visitField(0, "methods", "[Lmx/kenzie/mimic/MethodErasure;", null, null);
+        this.writer.visitField(0, "methods", "[Lmx/kenzie/mimic/MethodErasure;", null, null).visitEnd();
+        for (final FieldErasure erasure : fields.keySet()) {
+            this.writer.visitField(0, erasure.name(), Type.getDescriptor(erasure.type()), null, null).visitEnd();
+        }
         if (top != null && top != Object.class) this.scrapeMethods(top);
         for (final Class<?> template : interfaces) this.scrapeMethods(template);
         this.writer.visitEnd();
@@ -102,144 +111,11 @@ public class MimicGenerator {
     }
     
     protected void writeCaller(Method method) {
-        final MethodVisitor visitor = writer.visitMethod(1 | 16 | 4096, method.getName(), Type.getMethodDescriptor(method), null, null);
-        visitor.visitCode();
-        visitor.visitVarInsn(ALOAD, 0);
-        visitor.visitFieldInsn(GETFIELD, internal, "executor", "Lmx/kenzie/mimic/MethodExecutor;");
-        visitor.visitVarInsn(ALOAD, 0);
-        visitor.visitVarInsn(ALOAD, 0);
-        visitor.visitFieldInsn(GETFIELD, internal, "methods", "[Lmx/kenzie/mimic/MethodErasure;");
-        visitor.visitIntInsn(BIPUSH, index);
-        visitor.visitInsn(AALOAD);
-        visitor.visitIntInsn(BIPUSH, method.getParameterCount());
-        visitor.visitTypeInsn(ANEWARRAY, "java/lang/Object");
-        int argumentIndex = 0;
-        int storeIndex = -1;
-        for (Class<?> parameter : method.getParameterTypes()) {
-            visitor.visitInsn(DUP);
-            visitor.visitIntInsn(BIPUSH, ++storeIndex);
-            visitor.visitVarInsn(20 + instructionOffset(parameter), ++argumentIndex);
-            this.box(visitor, parameter);
-            visitor.visitInsn(AASTORE);
-            argumentIndex += wideIndexOffset(parameter);
-        }
-        visitor.visitMethodInsn(INVOKEINTERFACE, "mx/kenzie/mimic/MethodExecutor", "invoke", "(Ljava/lang/Object;Lmx/kenzie/mimic/MethodErasure;[Ljava/lang/Object;)Ljava/lang/Object;", true);
-        if (method.getReturnType() == void.class) {
-            visitor.visitInsn(POP);
-            visitor.visitInsn(RETURN);
-        } else {
-            visitor.visitTypeInsn(CHECKCAST, Type.getInternalName(getWrapperType(method.getReturnType())));
-            this.unbox(visitor, method.getReturnType());
-            visitor.visitInsn(171 + instructionOffset(method.getReturnType()));
-        }
-        visitor.visitMaxs(8, 1 + method.getParameterCount() + wideIndexOffset(method.getParameterTypes(), method.getReturnType()));
-        visitor.visitEnd();
+        final MethodErasure erasure = new MethodErasure(method);
+        final MethodWriter writer;
+        if (overrides.containsKey(erasure)) writer = this.overrides.get(erasure);
+        else writer = this.handler;
+        writer.write(this, method, this.writer, internal, index);
     }
-    
-    protected int instructionOffset(Class<?> type) {
-        if (type == int.class) return 1;
-        if (type == boolean.class) return 1;
-        if (type == byte.class) return 1;
-        if (type == short.class) return 1;
-        if (type == long.class) return 2;
-        if (type == float.class) return 3;
-        if (type == double.class) return 4;
-        if (type == void.class) return 6;
-        return 5;
-    }
-    
-    protected void box(MethodVisitor visitor, Class<?> value) {
-        if (value == byte.class)
-            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Byte.class), "valueOf", "(B)Ljava/lang/Byte;", false);
-        if (value == short.class)
-            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Short.class), "valueOf", "(S)Ljava/lang/Short;", false);
-        if (value == int.class)
-            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Integer.class), "valueOf", "(I)Ljava/lang/Integer;", false);
-        if (value == long.class)
-            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Long.class), "valueOf", "(J)Ljava/lang/Long;", false);
-        if (value == float.class)
-            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Float.class), "valueOf", "(F)Ljava/lang/Float;", false);
-        if (value == double.class)
-            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Double.class), "valueOf", "(D)Ljava/lang/Double;", false);
-        if (value == boolean.class)
-            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Boolean.class), "valueOf", "(Z)Ljava/lang/Boolean;", false);
-        if (value == void.class)
-            visitor.visitInsn(ACONST_NULL);
-    }
-    
-    protected int wideIndexOffset(Class<?> thing) {
-        if (thing == long.class || thing == double.class) return 1;
-        return 0;
-    }
-    
-    protected Class<?> getWrapperType(Class<?> primitive) {
-        if (primitive == byte.class) return Byte.class;
-        if (primitive == short.class) return Short.class;
-        if (primitive == int.class) return Integer.class;
-        if (primitive == long.class) return Long.class;
-        if (primitive == float.class) return Float.class;
-        if (primitive == double.class) return Double.class;
-        if (primitive == boolean.class) return Boolean.class;
-        if (primitive == void.class) return Void.class;
-        return primitive;
-    }
-    
-    protected void unbox(MethodVisitor visitor, Class<?> parameter) {
-        if (parameter == byte.class)
-            visitor.visitMethodInsn(INVOKEVIRTUAL, Type.getInternalName(Byte.class), "byteValue", "()B", false);
-        if (parameter == short.class)
-            visitor.visitMethodInsn(INVOKEVIRTUAL, Type.getInternalName(Short.class), "shortValue", "()S", false);
-        if (parameter == int.class)
-            visitor.visitMethodInsn(INVOKEVIRTUAL, Type.getInternalName(Integer.class), "intValue", "()I", false);
-        if (parameter == long.class)
-            visitor.visitMethodInsn(INVOKEVIRTUAL, Type.getInternalName(Long.class), "longValue", "()J", false);
-        if (parameter == float.class)
-            visitor.visitMethodInsn(INVOKEVIRTUAL, Type.getInternalName(Float.class), "floatValue", "()F", false);
-        if (parameter == double.class)
-            visitor.visitMethodInsn(INVOKEVIRTUAL, Type.getInternalName(Double.class), "doubleValue", "()D", false);
-        if (parameter == boolean.class)
-            visitor.visitMethodInsn(INVOKEVIRTUAL, Type.getInternalName(Boolean.class), "booleanValue", "()Z", false);
-    }
-    
-    protected int wideIndexOffset(Class<?>[] params, Class<?> ret) {
-        int i = 0;
-        for (Class<?> param : params) {
-            i += wideIndexOffset(param);
-        }
-        return Math.max(i, wideIndexOffset(ret));
-    }
-    
-    //region Utilities
-    protected void doTypeConversion(MethodVisitor visitor, Class<?> from, Class<?> to) {
-        if (from == to) return;
-        if (from == void.class || to == void.class) return;
-        if (from.isPrimitive() && to.isPrimitive()) {
-            final int opcode;
-            if (from == float.class) {
-                if (to == double.class) opcode = F2D;
-                else if (to == long.class) opcode = F2L;
-                else opcode = F2I;
-            } else if (from == double.class) {
-                if (to == float.class) opcode = D2F;
-                else if (to == long.class) opcode = D2L;
-                else opcode = D2I;
-            } else if (from == long.class) {
-                if (to == float.class) opcode = L2F;
-                else if (to == double.class) opcode = L2D;
-                else opcode = L2I;
-            } else {
-                if (to == float.class) opcode = I2F;
-                else if (to == double.class) opcode = I2D;
-                else if (to == byte.class) opcode = I2B;
-                else if (to == short.class) opcode = I2S;
-                else if (to == char.class) opcode = I2C;
-                else opcode = I2L;
-            }
-            visitor.visitInsn(opcode);
-        } else if (from.isPrimitive() ^ to.isPrimitive()) {
-            throw new IllegalArgumentException("Type wrapping is currently unsupported due to side-effects: '" + from.getSimpleName() + "' -> '" + to.getSimpleName() + "'");
-        } else visitor.visitTypeInsn(CHECKCAST, Type.getInternalName(to));
-    }
-    //endregion
     
 }

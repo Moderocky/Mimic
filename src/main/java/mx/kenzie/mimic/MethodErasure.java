@@ -35,9 +35,22 @@ public record MethodErasure(Class<?> owner, String name, Class<?>... parameters)
     
     @Override
     public int hashCode() {
-        int result = Objects.hash(owner, name);
-        result = 31 * result + Arrays.hashCode(parameters);
-        return result;
+        return 31 * name.hashCode() + Arrays.hashCode(parameters);
+    }
+    
+    @Override
+    public String toString() {
+        final StringBuilder builder = new StringBuilder();
+        builder.append(owner.getSimpleName()).append('.');
+        builder.append(name).append('(');
+        boolean first = true;
+        for (Class<?> parameter : parameters) {
+            if (!first) builder.append(", ");
+            first = false;
+            builder.append(parameter.getSimpleName());
+        }
+        builder.append(')');
+        return builder.toString();
     }
     
     @Override

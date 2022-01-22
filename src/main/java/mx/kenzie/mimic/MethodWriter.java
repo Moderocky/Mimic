@@ -21,8 +21,8 @@ class AcquireForwardingWriter extends ForwardingWriter {
         visitor.visitFieldInsn(GETFIELD, internal, "supplier_" + index, Type.getDescriptor(Supplier.class));
         visitor.visitMethodInsn(INVOKEINTERFACE, Type.getInternalName(Supplier.class), "get", "()Ljava/lang/Object;", true);
         visitor.visitTypeInsn(CHECKCAST, Type.getInternalName(target));
-        
     }
+    
 }
 
 class ForwardingWriter extends MethodWriter {

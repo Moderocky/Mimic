@@ -76,7 +76,7 @@ class InternalAccess {
     
     static Module getStrictModule(Class<?> top, Class<?>... interfaces) {
         if (!top.getModule().isExported(top.getPackageName())) return top.getModule();
-        for (Class<?> place : interfaces) {
+        for (final Class<?> place : interfaces) {
             if (!place.getModule().isExported(place.getPackageName())) return place.getModule();
         }
         return MethodErasure.class.getModule();
@@ -84,13 +84,9 @@ class InternalAccess {
     
     static String getStrictPackageName(Class<?> top, Class<?>... interfaces) {
         String namespace = LOCATION + ".mimic";
-        if (top != null && !Modifier.isPublic(top.getModifiers())) {
-            namespace = top.getPackageName();
-        }
-        for (Class<?> place : interfaces) {
-            if (!Modifier.isPublic(place.getModifiers())) {
-                namespace = place.getPackageName();
-            }
+        if (top != null && !Modifier.isPublic(top.getModifiers())) namespace = top.getPackageName();
+        for (final Class<?> place : interfaces) {
+            if (!Modifier.isPublic(place.getModifiers())) namespace = place.getPackageName();
         }
         return namespace;
     }

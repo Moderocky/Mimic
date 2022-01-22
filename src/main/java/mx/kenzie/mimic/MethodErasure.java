@@ -40,11 +40,11 @@ public record MethodErasure(Class<?> owner, String name, Class<?>... parameters)
     
     @Override
     public String toString() {
-        final StringBuilder builder = new StringBuilder();
+        final StringBuilder builder = new StringBuilder(6 + owner.getSimpleName().length() + 2 + parameters.length * 8);
         builder.append(owner.getSimpleName()).append('.');
         builder.append(name).append('(');
         boolean first = true;
-        for (Class<?> parameter : parameters) {
+        for (final Class<?> parameter : parameters) {
             if (!first) builder.append(", ");
             first = false;
             builder.append(parameter.getSimpleName());

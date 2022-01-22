@@ -43,20 +43,15 @@ public class MimicGenerator {
         final boolean complex = !top.isInterface() || !overrides.isEmpty() || !fields.isEmpty();
         final byte[] bytecode = writeCode();
         final Class<?> type = InternalAccess.loadClass(loader, internal.replace('/', '.'), bytecode);
+        assert type != null;
         final Object object = this.allocateInstance(type);
         if (complex) {
-            try {
-                for (Map.Entry<FieldErasure, Object> entry : fields.entrySet()) {
-                    final long offset = this.offset(object.getClass().getDeclaredField(entry.getKey().name()));
-                    this.putValue(object, offset, entry.getValue());
-                }
-                final long exec = this.offset(object.getClass().getDeclaredField("executor"));
-                final long meth = this.offset(object.getClass().getDeclaredField("methods"));
-                this.putValue(object, exec, executor);
-                this.putValue(object, meth, finished.toArray(new MethodErasure[0]));
-            } catch (NoSuchFieldException ignored) {
+            for (Map.Entry<FieldErasure, Object> entry : fields.entrySet()) {
+                this.setField(object, entry.getKey().name(), entry.getValue());
             }
-        } else {
+            this.setField(object, "executor", executor);
+            this.setField(object, "methods", finished.toArray(new MethodErasure[0]));
+        } else { // trivial
             this.putValue(object, 12, executor);
             this.putValue(object, 16, finished.toArray(new MethodErasure[0]));
         }
@@ -65,8 +60,10 @@ public class MimicGenerator {
     
     protected byte[] writeCode() {
         this.writer.visit(61, 1 | 16 | 32, internal, null, Type.getInternalName(top != null && !top.isInterface() ? top : Object.class), this.getInterfaces());
-        this.writer.visitField(0, "executor", "Lmx/kenzie/mimic/MethodExecutor;", null, null).visitEnd();
-        this.writer.visitField(0, "methods", "[Lmx/kenzie/mimic/MethodErasure;", null, null).visitEnd();
+        this.writer.visitField(0x00000080 | 0x00000004, "executor", "Lmx/kenzie/mimic/MethodExecutor;", null, null)
+            .visitEnd();
+        this.writer.visitField(0x00000080 | 0x00000004, "methods", "[Lmx/kenzie/mimic/MethodErasure;", null, null)
+            .visitEnd();
         for (final FieldErasure erasure : fields.keySet()) {
             this.writer.visitField(0, erasure.name(), Type.getDescriptor(erasure.type()), null, null).visitEnd();
         }
@@ -80,8 +77,11 @@ public class MimicGenerator {
         return InternalAccess.allocateInstance(type);
     }
     
-    protected long offset(final Field field) {
-        return InternalAccess.offset(field);
+    private void setField(Object owner, String name, Object value) {
+        final Field field = this.getField(owner.getClass(), name);
+        if (field == null) return;
+        final long offset = this.offset(this.getField(owner.getClass(), name));
+        this.putValue(owner, offset, value);
     }
     
     protected void putValue(final Object object, final long offset, final Object value) {
@@ -91,9 +91,7 @@ public class MimicGenerator {
     protected String[] getInterfaces() {
         final Set<String> strings = new HashSet<>();
         if (top.isInterface()) strings.add(Type.getInternalName(top));
-        for (Class<?> type : interfaces) {
-            strings.add(Type.getInternalName(type));
-        }
+        for (final Class<?> type : interfaces) strings.add(Type.getInternalName(type));
         return strings.toArray(new String[0]);
     }
     
@@ -108,6 +106,18 @@ public class MimicGenerator {
             this.writeCaller(method);
             this.index++;
         }
+    }
+    
+    private Field getField(Class<?> owner, String name) {
+        try {
+            return owner.getDeclaredField(name);
+        } catch (NoSuchFieldException | NullPointerException ex) {
+            return null;
+        }
+    }
+    
+    protected long offset(final Field field) {
+        return InternalAccess.offset(field);
     }
     
     protected void writeCaller(Method method) {

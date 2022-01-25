@@ -2,18 +2,20 @@ package mx.kenzie.mimic;
 
 import sun.misc.Unsafe;
 
+import java.lang.invoke.MethodHandles;
 import java.lang.reflect.*;
 import java.security.PrivilegedExceptionAction;
 import java.security.ProtectionDomain;
 
 @SuppressWarnings("removal")
-class InternalAccess {
+public class InternalAccess implements ClassDefiner {
     
     static final String LOCATION = "com.sun.proxy";
     static Object javaLangAccess;
     static Unsafe unsafe;
     static Method defineClass;
     static Method addExports0;
+    static long offset;
     
     static {
         try {
@@ -24,7 +26,7 @@ class InternalAccess {
                 return (Unsafe) field.get(null);
             });
             final Field field = Class.class.getDeclaredField("module");
-            final long offset = unsafe.objectFieldOffset(field);
+            offset = unsafe.objectFieldOffset(field);
             unsafe.putObject(InternalAccess.class, offset, Object.class.getModule());
             final Method setAccessible0 = AccessibleObject.class.getDeclaredMethod("setAccessible0", boolean.class);
             setAccessible0.setAccessible(true);
@@ -43,13 +45,7 @@ class InternalAccess {
         }
     }
     
-    static Class<?> loadClass(ClassLoader loader, String name, byte[] bytes) {
-        try {
-            return (Class<?>) defineClass.invoke(javaLangAccess, loader, name, bytes, null, "__Mimic__");
-        } catch (InvocationTargetException | IllegalAccessException e) {
-            e.printStackTrace();
-            return null;
-        }
+    InternalAccess() {
     }
     
     static void export(final Module module, final String namespace) {
@@ -95,4 +91,59 @@ class InternalAccess {
         return unsafe.objectFieldOffset(field);
     }
     
+    static void moveModule(Class<?> from, Class<?> to) {
+        unsafe.putObject(from, offset, to.getModule());
+    }
+    
+    public static Object getJavaLangAccess() {
+        return javaLangAccess;
+    }
+    
+    public static Unsafe getUnsafe() {
+        return unsafe;
+    }
+    
+    public static ClassDefiner createDefiner(Class<?> target) {
+        try {
+            final MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(target, MethodHandles.lookup());
+            class Definer implements ClassDefiner {
+                
+                @Override
+                public <Type> Type define(ClassLoader loader, String name, byte[] bytecode) {
+                    try {
+                        return (Type) lookup.defineHiddenClass(bytecode, true, MethodHandles.Lookup.ClassOption.NESTMATE)
+                            .lookupClass();
+                    } catch (IllegalAccessException e) {
+                        unsafe.throwException(e);
+                        return null;
+                    }
+                }
+                
+                @Override
+                public String getPackage() {
+                    return target.getPackageName();
+                }
+            }
+//            moveModule(Definer.class, target);
+            return new Definer();
+        } catch (IllegalAccessException e) {
+            unsafe.throwException(e);
+            return null;
+        }
+    }
+    
+    @Override
+    @SuppressWarnings({"unchecked"})
+    public <Type> Type define(ClassLoader loader, String name, byte[] bytecode) {
+        return (Type) loadClass(loader, name, bytecode);
+    }
+    
+    static Class<?> loadClass(ClassLoader loader, String name, byte[] bytes) {
+        try {
+            return (Class<?>) defineClass.invoke(javaLangAccess, loader, name, bytes, null, "__Mimic__");
+        } catch (InvocationTargetException | IllegalAccessException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
 }

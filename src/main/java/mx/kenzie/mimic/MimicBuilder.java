@@ -11,6 +11,8 @@ import java.util.function.Supplier;
 
 public interface MimicBuilder<Template> {
     
+    MimicBuilder<Template> definer(ClassDefiner definer);
+    
     MimicBuilder<Template> forward(Object object);
     
     <Type> MimicBuilder<Template> forward(Supplier<Type> supplier, Class<Type> type);
@@ -42,12 +44,19 @@ class SimpleMimicBuilder<Template> implements MimicBuilder<Template> {
     protected Class<?>[] interfaces;
     protected MethodExecutor executor = DEFAULT;
     protected int index;
+    protected ClassDefiner definer;
     
     public SimpleMimicBuilder(Class<Template> top, Class<?>... interfaces) {
         this.top = top;
         this.interfaces = interfaces;
         this.overrides = new HashMap<>();
         this.fields = new HashMap<>();
+    }
+    
+    @Override
+    public MimicBuilder<Template> definer(ClassDefiner definer) {
+        this.definer = definer;
+        return this;
     }
     
     @Override
@@ -93,12 +102,16 @@ class SimpleMimicBuilder<Template> implements MimicBuilder<Template> {
     @SuppressWarnings("removal")
     public Template build() {
         final int index = MimicGenerator.count();
-        final String name = InternalAccess.getStrictPackageName(top, interfaces);
+        final String name;
+        if (definer != null && definer.getPackage() != null)
+            name = definer.getPackage();
+        else name = InternalAccess.getStrictPackageName(top, interfaces);
         final Module module = InternalAccess.getStrictModule(top, interfaces);
         final String path = name.replace('.', '/') + "/Mimic_" + index;
         final PrivilegedAction<ClassLoader> action = module::getClassLoader;
         final ClassLoader loader = java.security.AccessController.doPrivileged(action);
         final MimicGenerator generator = new MimicGenerator(path, top, interfaces);
+        if (definer != null) generator.definer = definer;
         generator.overrides.putAll(this.overrides);
         generator.fields.putAll(this.fields);
         return generator.create(loader, executor);

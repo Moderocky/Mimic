@@ -19,6 +19,7 @@ public class MimicGenerator {
     protected final MethodWriter handler;
     protected final Map<MethodErasure, MethodWriter> overrides = new HashMap<>();
     protected final Map<FieldErasure, Object> fields = new HashMap<>();
+    protected ClassDefiner definer = new InternalAccess();
     protected int index;
     
     protected MimicGenerator(String location, Class<?> top, Class<?>... interfaces) {
@@ -42,7 +43,7 @@ public class MimicGenerator {
     public <Template> Template create(ClassLoader loader, MethodExecutor executor) {
         final boolean complex = !top.isInterface() || !overrides.isEmpty() || !fields.isEmpty();
         final byte[] bytecode = writeCode();
-        final Class<?> type = InternalAccess.loadClass(loader, internal.replace('/', '.'), bytecode);
+        final Class<?> type = definer.define(loader, internal.replace('/', '.'), bytecode);
         assert type != null;
         final Object object = this.allocateInstance(type);
         if (complex) {

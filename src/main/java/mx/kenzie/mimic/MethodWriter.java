@@ -10,11 +10,11 @@ import java.util.function.Supplier;
 import static org.objectweb.asm.Opcodes.*;
 
 class AcquireForwardingWriter extends ForwardingWriter {
-    
+
     AcquireForwardingWriter(Class<?> type, int index) {
         super(type, index);
     }
-    
+
     @Override
     protected void acquire(MethodVisitor visitor, Method method, String internal) {
         visitor.visitVarInsn(ALOAD, 0);
@@ -22,23 +22,23 @@ class AcquireForwardingWriter extends ForwardingWriter {
         visitor.visitMethodInsn(INVOKEINTERFACE, Type.getInternalName(Supplier.class), "get", "()Ljava/lang/Object;", true);
         visitor.visitTypeInsn(CHECKCAST, Type.getInternalName(target));
     }
-    
+
 }
 
 class ForwardingWriter extends MethodWriter {
-    
+
     protected Class<?> target;
     protected int index;
-    
+
     ForwardingWriter(Class<?> target, int index) {
         this.target = target;
         this.index = index;
     }
-    
+
     ForwardingWriter() {
         this.target = null;
     }
-    
+
     @Override
     protected void write(MimicGenerator generator, Method original, ClassWriter writer, String internal, int index) {
         final Method method = this.findSimilar(original, target);
@@ -64,22 +64,22 @@ class ForwardingWriter extends MethodWriter {
         visitor.visitMaxs(max + 1, max);
         visitor.visitEnd();
     }
-    
+
     protected void acquire(MethodVisitor visitor, Method method, String internal) {
         visitor.visitVarInsn(ALOAD, 0);
         visitor.visitFieldInsn(GETFIELD, internal, "target_" + index, Type.getDescriptor(target));
     }
-    
+
 }
 
 class SpecificExecutorWriter extends MethodWriter {
-    
+
     protected final int index;
-    
+
     SpecificExecutorWriter(int index) {
         this.index = index;
     }
-    
+
     @Override
     protected void write(MimicGenerator generator, Method method, ClassWriter writer, String internal, final int index) {
         final MethodVisitor visitor = writer.visitMethod(1 | 16 | 4096, method.getName(), Type.getMethodDescriptor(method), null, null);
@@ -118,7 +118,7 @@ class SpecificExecutorWriter extends MethodWriter {
 }
 
 public class MethodWriter {
-    
+
     protected void write(MimicGenerator generator, Method method, ClassWriter writer, String internal, final int index) {
         final MethodVisitor visitor = writer.visitMethod(1 | 16 | 4096, method.getName(), Type.getMethodDescriptor(method), null, null);
         visitor.visitCode();
@@ -153,7 +153,7 @@ public class MethodWriter {
         visitor.visitMaxs(8, 1 + method.getParameterCount() + wideIndexOffset(method.getParameterTypes(), method.getReturnType()));
         visitor.visitEnd();
     }
-    
+
     protected int instructionOffset(Class<?> type) {
         if (type == int.class) return 1;
         if (type == boolean.class) return 1;
@@ -165,7 +165,7 @@ public class MethodWriter {
         if (type == void.class) return 6;
         return 5;
     }
-    
+
     protected void box(MethodVisitor visitor, Class<?> value) {
         if (value == byte.class)
             visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Byte.class), "valueOf", "(B)Ljava/lang/Byte;", false);
@@ -182,16 +182,16 @@ public class MethodWriter {
         if (value == boolean.class)
             visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Boolean.class), "valueOf", "(Z)Ljava/lang/Boolean;", false);
         if (value == char.class)
-            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Character.class), "valueOf", "(Z)Ljava/lang/Character;", false);
+            visitor.visitMethodInsn(INVOKESTATIC, Type.getInternalName(Character.class), "valueOf", "(C)Ljava/lang/Character;", false);
         if (value == void.class)
             visitor.visitInsn(ACONST_NULL);
     }
-    
+
     protected int wideIndexOffset(Class<?> thing) {
         if (thing == long.class || thing == double.class) return 1;
         return 0;
     }
-    
+
     protected Class<?> getWrapperType(Class<?> primitive) {
         if (primitive == byte.class) return Byte.class;
         if (primitive == short.class) return Short.class;
@@ -203,7 +203,7 @@ public class MethodWriter {
         if (primitive == void.class) return Void.class;
         return primitive;
     }
-    
+
     protected void unbox(MethodVisitor visitor, Class<?> parameter) {
         if (parameter == byte.class)
             visitor.visitMethodInsn(INVOKEVIRTUAL, Type.getInternalName(Number.class), "byteValue", "()B", false);
@@ -222,7 +222,7 @@ public class MethodWriter {
         if (parameter == char.class)
             visitor.visitMethodInsn(INVOKEVIRTUAL, Type.getInternalName(Character.class), "charValue", "()C", false);
     }
-    
+
     protected int wideIndexOffset(Class<?>[] params, Class<?> ret) {
         int i = 0;
         for (Class<?> param : params) {
@@ -230,7 +230,7 @@ public class MethodWriter {
         }
         return Math.max(i, wideIndexOffset(ret));
     }
-    
+
     protected void doTypeConversion(MethodVisitor visitor, Class<?> from, Class<?> to) {
         if (from == to) return;
         if (from == void.class || to == void.class) return;
@@ -261,7 +261,7 @@ public class MethodWriter {
             throw new IllegalArgumentException("Type wrapping is currently unsupported due to side-effects: '" + from.getSimpleName() + "' -> '" + to.getSimpleName() + "'");
         } else visitor.visitTypeInsn(CHECKCAST, Type.getInternalName(to));
     }
-    
+
     protected Method findSimilar(Method method, Class<?> type) {
         try {
             return type.getMethod(method.getName(), method.getParameterTypes());
@@ -269,7 +269,7 @@ public class MethodWriter {
             return method;
         }
     }
-    
+
     protected Method findSimilar(MethodErasure erasure, Class<?> type) {
         try {
             return type.getMethod(erasure.name(), erasure.parameters());
@@ -277,5 +277,5 @@ public class MethodWriter {
             return null;
         }
     }
-    
+
 }

@@ -58,9 +58,6 @@ class ForwardingWriter extends MethodWriter {
             argumentIndex += wideIndexOffset(parameter);
         }
         final Class<?> owner = method.getDeclaringClass();
-//        final int code;
-//        if (method.getDeclaringClass().isInterface()) code = INVOKEINTERFACE;
-//        else code = INVOKEVIRTUAL;
         final Member member = new Member(method);
         if (owner.isInterface())
             code.write(INVOKEINTERFACE.interfaceMethod(member));
@@ -70,9 +67,6 @@ class ForwardingWriter extends MethodWriter {
         } else {
             code.write((byte) (171 + instructionOffset(method.getReturnType())));
         }
-//        final int max = 1 + method.getParameterCount() + wideIndexOffset(method.getParameterTypes(),
-//            method.getReturnType());
-//        code.size (max + 1, max);
     }
 
     protected void acquire(CodeBuilder visitor, Method method, Type internal) {
@@ -117,8 +111,6 @@ class SpecificExecutorWriter extends MethodWriter {
             this.unbox(code, method.getReturnType());
             code.write((byte) (171 + instructionOffset(method.getReturnType())));
         }
-//        code.registerSize(8, 1 + method.getParameterCount() + wideIndexOffset(method.getParameterTypes(),
-//            method.getReturnType()));
     }
 
 }
@@ -153,9 +145,6 @@ public class MethodWriter {
             this.unbox(code, method.getReturnType());
             code.write((byte) (171 + instructionOffset(method.getReturnType())));
         }
-//        code.stackSize(8).registerSize(1 + method.getParameterCount() + wideIndexOffset(method.getParameterTypes(),
-//            method.getReturnType()));
-        // todo i think we just count as we go?
     }
 
     protected int instructionOffset(Class<?> type) {

@@ -5,10 +5,6 @@ import org.valross.foundation.assembler.tool.ClassFileBuilder;
 import org.valross.foundation.detail.Signature;
 import org.valross.foundation.detail.Type;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -52,15 +48,6 @@ public class MimicGenerator {
     public <Template> Template create(ClassLoader loader, MethodExecutor executor) {
         final boolean complex = !top.isInterface() || !overrides.isEmpty() || !fields.isEmpty();
         final byte[] bytecode = writeCode();
-        {// todo
-            final File file = new File("target/generated-mimic/" + top.getName() + ".class");
-            file.getParentFile().mkdirs();
-            try (OutputStream out = new FileOutputStream(file)) {
-                out.write(bytecode);
-            } catch (IOException ex) {
-                ex.printStackTrace();
-            }
-        }
         final Class<?> type = definer.define(loader, internal.getTypeName(), bytecode);
         assert type != null;
         final Object object = this.allocateInstance(type);

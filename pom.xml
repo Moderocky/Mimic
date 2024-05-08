@@ -6,12 +6,12 @@
 
     <groupId>mx.kenzie</groupId>
     <artifactId>mimic</artifactId>
-    <version>1.1.0</version>
+    <version>1.2.0</version>
     <name>Mimic</name>
 
     <properties>
-        <maven.compiler.source>17</maven.compiler.source>
-        <maven.compiler.target>17</maven.compiler.target>
+        <maven.compiler.source>22</maven.compiler.source>
+        <maven.compiler.target>22</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -43,10 +43,14 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.ow2.asm</groupId>
-            <artifactId>asm</artifactId>
-            <version>9.2</version>
-            <scope>provided</scope>
+            <groupId>org.valross</groupId>
+            <artifactId>constantine</artifactId>
+            <version>1.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.valross</groupId>
+            <artifactId>foundation-assembler</artifactId>
+            <version>3.0.0</version>
         </dependency>
     </dependencies>
 

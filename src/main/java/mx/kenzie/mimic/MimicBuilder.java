@@ -1,6 +1,6 @@
 package mx.kenzie.mimic;
 
-import org.valross.foundation.detail.Member;
+import org.valross.foundation.detail.Signature;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -20,14 +20,14 @@ public interface MimicBuilder<Template> {
     <Type> MimicBuilder<Template> forward(Supplier<Type> supplier, Class<Type> type);
 
     default MimicBuilder<Template> override(MethodExecutor executor, Method... methods) {
-        final Member[] erasures = new Member[methods.length];
+        final Signature[] erasures = new Signature[methods.length];
         for (int i = 0; i < methods.length; i++) {
-            erasures[i] = new Member(methods[i]);
+            erasures[i] = new Signature(methods[i]);
         }
         return this.override(executor, erasures);
     }
 
-    MimicBuilder<Template> override(MethodExecutor executor, Member... methods);
+    MimicBuilder<Template> override(MethodExecutor executor, Signature... methods);
 
     MimicBuilder<Template> executor(MethodExecutor executor);
 
@@ -40,8 +40,8 @@ class SimpleMimicBuilder<Template> implements MimicBuilder<Template> {
     protected static final MethodExecutor DEFAULT = (object, erasure, args) -> {
         throw new RuntimeException("This method has no defined executor.");
     };
-    protected final Map<Member, MethodWriter> overrides;
-    protected final Map<Member, Object> fields;
+    protected final Map<Signature, MethodWriter> overrides;
+    protected final Map<Signature, Object> fields;
     protected Class<Template> top;
     protected Class<?>[] interfaces;
     protected MethodExecutor executor = DEFAULT;
@@ -65,10 +65,10 @@ class SimpleMimicBuilder<Template> implements MimicBuilder<Template> {
     public MimicBuilder<Template> forward(Object object) {
         final int index = ++this.index;
         final MethodWriter writer = new ForwardingWriter(object.getClass(), index);
-        for (final Member erasure : this.scrapeMethods(object.getClass())) {
+        for (final Signature erasure : this.scrapeMethods(object.getClass())) {
             this.overrides.put(erasure, writer);
         }
-        this.fields.put(new Member(top, "target_" + index, object.getClass()), object);
+        this.fields.put(new Signature("target_" + index, object.getClass()), object);
         return this;
     }
 
@@ -76,21 +76,21 @@ class SimpleMimicBuilder<Template> implements MimicBuilder<Template> {
     public <Type> MimicBuilder<Template> forward(Supplier<Type> supplier, Class<Type> type) {
         final int index = ++this.index;
         final MethodWriter writer = new AcquireForwardingWriter(type, index);
-        for (final Member erasure : this.scrapeMethods(type)) {
+        for (final Signature erasure : this.scrapeMethods(type)) {
             this.overrides.put(erasure, writer);
         }
-        this.fields.put(new Member(top, "supplier_" + index, Supplier.class), supplier);
+        this.fields.put(new Signature("supplier_" + index, Supplier.class), supplier);
         return this;
     }
 
     @Override
-    public MimicBuilder<Template> override(MethodExecutor executor, Member... methods) {
+    public MimicBuilder<Template> override(MethodExecutor executor, Signature... methods) {
         final int index = ++this.index;
         final MethodWriter writer = new SpecificExecutorWriter(index);
-        for (final Member erasure : methods) {
-            this.overrides.put(erasure, writer);
+        for (final Signature erasure : methods) {
+            this.overrides.put(erasure.asMethodErasure().getSignature(), writer);
         }
-        this.fields.put(new Member(top, "executor_" + index, MethodExecutor.class), executor);
+        this.fields.put(new Signature("executor_" + index, MethodExecutor.class), executor);
         return this;
     }
 
@@ -118,17 +118,17 @@ class SimpleMimicBuilder<Template> implements MimicBuilder<Template> {
         return generator.create(loader, executor);
     }
 
-
-    protected List<Member> scrapeMethods(Class<?> template) {
-        final List<Member> methods = new ArrayList<>();
+    protected List<Signature> scrapeMethods(Class<?> template) {
+        final List<Signature> methods = new ArrayList<>();
         for (final Method method : template.getMethods()) {
             if (Modifier.isStatic(method.getModifiers())) continue;
             if (Modifier.isFinal(method.getModifiers())) continue;
             if (Modifier.isPrivate(method.getModifiers())) continue;
-            final Member erasure = new Member(method);
+            final Signature erasure = new Signature(method);
             if (overrides.containsKey(erasure)) continue;
             methods.add(erasure);
         }
         return methods;
     }
+
 }

@@ -96,7 +96,7 @@ class SpecificExecutorWriter extends MethodWriter {
             .named(method.getName()).signature(new Signature(method));
         final CodeBuilder code = visitor.code();
         code.write(ALOAD_0, GETFIELD.field(internal, "executor_" + this.index, MethodExecutor.class));
-        code.write(ALOAD_0, ALOAD_0, GETFIELD.field(internal, "methods", Member[].class));
+        code.write(ALOAD_0, ALOAD_0, GETFIELD.field(internal, "methods", Signature[].class));
         code.write(BIPUSH.value(index), AALOAD, BIPUSH.value(method.getParameterCount()));
         code.write(ANEWARRAY.type(Object.class));
         int argumentIndex = 0;
@@ -109,7 +109,7 @@ class SpecificExecutorWriter extends MethodWriter {
             argumentIndex += wideIndexOffset(parameter);
         }
         code.write(INVOKEINTERFACE.method(true, MethodExecutor.class, Object.class, "invoke", Object.class,
-            Member.class, Object[].class));
+            Signature.class, Object[].class));
         if (method.getReturnType() == void.class) {
             code.write(POP, RETURN);
         } else {
@@ -132,7 +132,7 @@ public class MethodWriter {
             .named(method.getName()).signature(new Signature(method));
         final CodeBuilder code = visitor.code();
         code.write(ALOAD_0).write(GETFIELD.field(internal, "executor", MethodExecutor.class)).write(ALOAD_0);
-        code.write(ALOAD_0, GETFIELD.field(internal, "methods", Member[].class));
+        code.write(ALOAD_0, GETFIELD.field(internal, "methods", Signature[].class));
         code.write(BIPUSH.value(index), AALOAD, BIPUSH.value(method.getParameterCount()));
         code.write(ANEWARRAY.type(Object.class));
         int argumentIndex = 0;
@@ -145,7 +145,7 @@ public class MethodWriter {
             argumentIndex += wideIndexOffset(parameter);
         }
         code.write(INVOKEINTERFACE.method(true, MethodExecutor.class, Object.class, "invoke", Object.class,
-            Member.class, Object[].class));
+            Signature.class, Object[].class));
         if (method.getReturnType() == void.class) {
             code.write(POP, RETURN);
         } else {
@@ -274,7 +274,7 @@ public class MethodWriter {
         }
     }
 
-    protected Method findSimilar(Member erasure, Class<?> type) {
+    protected Method findSimilar(Signature erasure, Class<?> type) {
         try {
             return type.getMethod(erasure.name(), Type.classArray(erasure.parameters()));
         } catch (NoSuchMethodException e) {

@@ -2,7 +2,6 @@ package mx.kenzie.mimic;
 
 import org.valross.foundation.assembler.tool.Access;
 import org.valross.foundation.assembler.tool.ClassFileBuilder;
-import org.valross.foundation.detail.Member;
 import org.valross.foundation.detail.Signature;
 import org.valross.foundation.detail.Type;
 
@@ -25,10 +24,10 @@ public class MimicGenerator {
     protected final Type internal;
     protected final Class<?> top;
     protected final Class<?>[] interfaces;
-    protected final List<Member> finished;
+    protected final List<Signature> finished;
     protected final MethodWriter handler;
-    protected final Map<Member, MethodWriter> overrides = new HashMap<>();
-    protected final Map<Member, Object> fields = new HashMap<>();
+    protected final Map<Signature, MethodWriter> overrides = new HashMap<>();
+    protected final Map<Signature, Object> fields = new HashMap<>();
     protected ClassDefiner definer = new InternalAccess();
     protected int index;
 
@@ -66,13 +65,13 @@ public class MimicGenerator {
         assert type != null;
         final Object object = this.allocateInstance(type);
         if (complex) {
-            for (Map.Entry<Member, Object> entry : fields.entrySet())
+            for (Map.Entry<Signature, Object> entry : fields.entrySet())
                 this.setField(object, entry.getKey().name(), entry.getValue());
             this.setField(object, "executor", executor);
-            this.setField(object, "methods", finished.toArray(new Member[0]));
+            this.setField(object, "methods", finished.toArray(new Signature[0]));
         } else { // trivial
             this.putValue(object, 12, executor);
-            this.putValue(object, 16, finished.toArray(new Member[0]));
+            this.putValue(object, 16, finished.toArray(new Signature[0]));
         }
         return (Template) object;
     }
@@ -85,9 +84,9 @@ public class MimicGenerator {
         this.writer.field().setModifiers(Access.PROTECTED, Access.TRANSIENT)
             .signature(new Signature("executor", MethodExecutor.class));
         this.writer.field().setModifiers(Access.PROTECTED, Access.TRANSIENT)
-            .signature(new Signature("methods", Member[].class));
-        for (final Member erasure : fields.keySet()) {
-            this.writer.field().named(erasure.name()).signature(erasure.asFieldErasure());
+            .signature(new Signature("methods", Signature[].class));
+        for (final Signature erasure : fields.keySet()) {
+            this.writer.field().named(erasure.name()).signature(erasure);
         }
         if (top != null && top != Object.class) this.scrapeMethods(top);
         for (final Class<?> template : interfaces) this.scrapeMethods(template);
@@ -121,7 +120,7 @@ public class MimicGenerator {
             if (Modifier.isStatic(method.getModifiers())) continue;
             if (Modifier.isFinal(method.getModifiers())) continue;
             if (Modifier.isPrivate(method.getModifiers())) continue;
-            final Member erasure = new Member(method);
+            final Signature erasure = new Signature(method);
             if (finished.contains(erasure)) continue;
             this.finished.add(erasure);
             this.writeCaller(method);
@@ -142,7 +141,7 @@ public class MimicGenerator {
     }
 
     protected void writeCaller(Method method) {
-        final Member erasure = new Member(method);
+        final Signature erasure = new Signature(method);
         final MethodWriter writer;
         if (overrides.containsKey(erasure)) writer = this.overrides.get(erasure);
         else writer = this.handler;

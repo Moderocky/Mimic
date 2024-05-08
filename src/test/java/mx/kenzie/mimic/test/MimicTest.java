@@ -2,7 +2,7 @@ package mx.kenzie.mimic.test;
 
 import mx.kenzie.mimic.Mimic;
 import org.junit.Test;
-import org.valross.foundation.detail.Member;
+import org.valross.foundation.detail.Signature;
 
 public class MimicTest {
 
@@ -10,9 +10,11 @@ public class MimicTest {
     public void basic() {
 
         interface Blob {
+
             int bean(int i);
 
             String say(String word);
+
         }
 
         class Box {
@@ -27,12 +29,12 @@ public class MimicTest {
 
         }
 
-        final Blob blob = Mimic.create((proxy, method, arguments) -> arguments[0], Blob.class);
+        final Blob blob = Mimic.create((_, _, arguments) -> arguments[0], Blob.class);
         assert blob.bean(2) == 2;
         assert blob.say("hello").equals("hello");
         assert !(blob instanceof Box);
 
-        final Box box = Mimic.create((proxy, method, arguments) -> arguments[0] + "", Box.class, Blob.class);
+        final Box box = Mimic.create((_, _, arguments) -> arguments[0] + "", Box.class, Blob.class);
         assert box.doSomething("goodbye").equals("goodbye");
         assert box.doSomething(6).equals("6");
         assert box instanceof Blob;
@@ -43,9 +45,11 @@ public class MimicTest {
     public void forward() {
 
         interface Blob {
+
             int bean(int i);
 
             String say(String word);
+
         }
 
         class Thing implements Blob {
@@ -59,9 +63,9 @@ public class MimicTest {
             public String say(String word) {
                 return "hello";
             }
+
         }
 
-        supplier:
         {
             final Blob blob = Mimic.create(Blob.class).forward(Thing::new, Thing.class).build();
             assert blob.bean(2) == 0;
@@ -69,7 +73,6 @@ public class MimicTest {
             assert !(blob instanceof Thing);
         }
 
-        direct:
         {
             final Blob blob = Mimic.create(Blob.class).forward(new Thing()).build();
             assert blob.bean(2) == 0;
@@ -83,11 +86,13 @@ public class MimicTest {
     public void override() {
 
         interface Blob {
+
             int a();
 
             int b();
 
             int c();
+
         }
 
         class Thing1 {
@@ -114,7 +119,6 @@ public class MimicTest {
 
         }
 
-        forwarding:
         {
             final Blob blob = Mimic.create(Blob.class)
                 .forward(Thing1::new, Thing1.class)
@@ -127,10 +131,9 @@ public class MimicTest {
             assert !(blob instanceof Thing2);
         }
 
-        specific:
         {
             final Blob blob = Mimic.create(Blob.class)
-                .override((proxy, method, arguments) -> 17, new Member(Blob.class, int.class, "b"))
+                .override((proxy, method, arguments) -> 17, new Signature(int.class, "b"))
                 .forward(new Thing1())
                 .forward(Thing2::new, Thing2.class)
                 .build();

@@ -1,8 +1,8 @@
 package mx.kenzie.mimic;
 
+import org.valross.foundation.detail.Member;
 import sun.misc.Unsafe;
 
-import org.valross.foundation.detail.Member;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.*;
 import java.security.PrivilegedExceptionAction;
@@ -20,7 +20,8 @@ public class InternalAccess implements ClassDefiner {
 
     static {
         try {
-            final Class<?> secrets = Class.forName("jdk.internal.access.SharedSecrets", false, ClassLoader.getSystemClassLoader());
+            final Class<?> secrets = Class.forName("jdk.internal.access.SharedSecrets", false,
+                ClassLoader.getSystemClassLoader());
             unsafe = java.security.AccessController.doPrivileged((PrivilegedExceptionAction<Unsafe>) () -> {
                 final Field field = Unsafe.class.getDeclaredField("theUnsafe");
                 field.setAccessible(true);
@@ -31,7 +32,8 @@ public class InternalAccess implements ClassDefiner {
             unsafe.putObject(InternalAccess.class, offset, Object.class.getModule());
             final Method setAccessible0 = AccessibleObject.class.getDeclaredMethod("setAccessible0", boolean.class);
             setAccessible0.setAccessible(true);
-            final Method implAddExportsOrOpens = Module.class.getDeclaredMethod("implAddExportsOrOpens", String.class, Module.class, boolean.class, boolean.class);
+            final Method implAddExportsOrOpens = Module.class.getDeclaredMethod("implAddExportsOrOpens", String.class
+                , Module.class, boolean.class, boolean.class);
             setAccessible0.invoke(implAddExportsOrOpens, true);
             addExports0 = Module.class.getDeclaredMethod("addExports0", Module.class, String.class, Module.class);
             setAccessible0.invoke(addExports0, true);
@@ -39,7 +41,8 @@ public class InternalAccess implements ClassDefiner {
             setAccessible0.invoke(getJavaLangAccess, true);
             javaLangAccess = getJavaLangAccess.invoke(null);
             defineClass = javaLangAccess.getClass()
-                .getMethod("defineClass", ClassLoader.class, String.class, byte[].class, ProtectionDomain.class, String.class);
+                .getMethod("defineClass", ClassLoader.class, String.class, byte[].class, ProtectionDomain.class,
+                    String.class);
             setAccessible0.invoke(defineClass, true);
         } catch (Throwable ex) {
             throw new RuntimeException(ex);
@@ -112,7 +115,8 @@ public class InternalAccess implements ClassDefiner {
                 @Override
                 public <Type> Type define(ClassLoader loader, String name, byte[] bytecode) {
                     try {
-                        return (Type) lookup.defineHiddenClass(bytecode, true, MethodHandles.Lookup.ClassOption.NESTMATE)
+                        return (Type) lookup.defineHiddenClass(bytecode, true,
+                                MethodHandles.Lookup.ClassOption.NESTMATE)
                             .lookupClass();
                     } catch (IllegalAccessException e) {
                         unsafe.throwException(e);
@@ -124,6 +128,7 @@ public class InternalAccess implements ClassDefiner {
                 public String getPackage() {
                     return target.getPackageName();
                 }
+
             }
 //            moveModule(Definer.class, target);
             return new Definer();
@@ -131,12 +136,6 @@ public class InternalAccess implements ClassDefiner {
             unsafe.throwException(e);
             return null;
         }
-    }
-
-    @Override
-    @SuppressWarnings({"unchecked"})
-    public <Type> Type define(ClassLoader loader, String name, byte[] bytecode) {
-        return (Type) loadClass(loader, name, bytecode);
     }
 
     static Class<?> loadClass(ClassLoader loader, String name, byte[] bytes) {
@@ -147,4 +146,11 @@ public class InternalAccess implements ClassDefiner {
             return null;
         }
     }
+
+    @Override
+    @SuppressWarnings({"unchecked"})
+    public <Type> Type define(ClassLoader loader, String name, byte[] bytecode) {
+        return (Type) loadClass(loader, name, bytecode);
+    }
+
 }

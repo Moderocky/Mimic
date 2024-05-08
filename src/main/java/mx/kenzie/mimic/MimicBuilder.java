@@ -20,14 +20,14 @@ public interface MimicBuilder<Template> {
     <Type> MimicBuilder<Template> forward(Supplier<Type> supplier, Class<Type> type);
 
     default MimicBuilder<Template> override(MethodExecutor executor, Method... methods) {
-        final MethodErasure[] erasures = new MethodErasure[methods.length];
+        final Member[] erasures = new Member[methods.length];
         for (int i = 0; i < methods.length; i++) {
-            erasures[i] = new MethodErasure(methods[i]);
+            erasures[i] = new Member(methods[i]);
         }
         return this.override(executor, erasures);
     }
 
-    MimicBuilder<Template> override(MethodExecutor executor, MethodErasure... methods);
+    MimicBuilder<Template> override(MethodExecutor executor, Member... methods);
 
     MimicBuilder<Template> executor(MethodExecutor executor);
 
@@ -40,7 +40,7 @@ class SimpleMimicBuilder<Template> implements MimicBuilder<Template> {
     protected static final MethodExecutor DEFAULT = (object, erasure, args) -> {
         throw new RuntimeException("This method has no defined executor.");
     };
-    protected final Map<MethodErasure, MethodWriter> overrides;
+    protected final Map<Member, MethodWriter> overrides;
     protected final Map<Member, Object> fields;
     protected Class<Template> top;
     protected Class<?>[] interfaces;
@@ -65,10 +65,10 @@ class SimpleMimicBuilder<Template> implements MimicBuilder<Template> {
     public MimicBuilder<Template> forward(Object object) {
         final int index = ++this.index;
         final MethodWriter writer = new ForwardingWriter(object.getClass(), index);
-        for (final MethodErasure erasure : this.scrapeMethods(object.getClass())) {
+        for (final Member erasure : this.scrapeMethods(object.getClass())) {
             this.overrides.put(erasure, writer);
         }
-        this.fields.put(new Member(null, "target_" + index, object.getClass()), object);
+        this.fields.put(new Member(top, "target_" + index, object.getClass()), object);
         return this;
     }
 
@@ -76,21 +76,21 @@ class SimpleMimicBuilder<Template> implements MimicBuilder<Template> {
     public <Type> MimicBuilder<Template> forward(Supplier<Type> supplier, Class<Type> type) {
         final int index = ++this.index;
         final MethodWriter writer = new AcquireForwardingWriter(type, index);
-        for (final MethodErasure erasure : this.scrapeMethods(type)) {
+        for (final Member erasure : this.scrapeMethods(type)) {
             this.overrides.put(erasure, writer);
         }
-        this.fields.put(new Member(null, "supplier_" + index, Supplier.class), supplier);
+        this.fields.put(new Member(top, "supplier_" + index, Supplier.class), supplier);
         return this;
     }
 
     @Override
-    public MimicBuilder<Template> override(MethodExecutor executor, MethodErasure... methods) {
+    public MimicBuilder<Template> override(MethodExecutor executor, Member... methods) {
         final int index = ++this.index;
         final MethodWriter writer = new SpecificExecutorWriter(index);
-        for (final MethodErasure erasure : methods) {
+        for (final Member erasure : methods) {
             this.overrides.put(erasure, writer);
         }
-        this.fields.put(new Member(null, "executor_" + index, MethodExecutor.class), executor);
+        this.fields.put(new Member(top, "executor_" + index, MethodExecutor.class), executor);
         return this;
     }
 
@@ -105,8 +105,7 @@ class SimpleMimicBuilder<Template> implements MimicBuilder<Template> {
     public Template build() {
         final int index = MimicGenerator.count();
         final String name;
-        if (definer != null && definer.getPackage() != null)
-            name = definer.getPackage();
+        if (definer != null && definer.getPackage() != null) name = definer.getPackage();
         else name = InternalAccess.getStrictPackageName(top, interfaces);
         final Module module = InternalAccess.getStrictModule(top, interfaces);
         final String path = name.replace('.', '/') + "/Mimic_" + index;
@@ -120,13 +119,13 @@ class SimpleMimicBuilder<Template> implements MimicBuilder<Template> {
     }
 
 
-    protected List<MethodErasure> scrapeMethods(Class<?> template) {
-        final List<MethodErasure> methods = new ArrayList<>();
+    protected List<Member> scrapeMethods(Class<?> template) {
+        final List<Member> methods = new ArrayList<>();
         for (final Method method : template.getMethods()) {
             if (Modifier.isStatic(method.getModifiers())) continue;
             if (Modifier.isFinal(method.getModifiers())) continue;
             if (Modifier.isPrivate(method.getModifiers())) continue;
-            final MethodErasure erasure = new MethodErasure(method);
+            final Member erasure = new Member(method);
             if (overrides.containsKey(erasure)) continue;
             methods.add(erasure);
         }

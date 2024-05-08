@@ -6,6 +6,10 @@ import org.valross.foundation.detail.Member;
 import org.valross.foundation.detail.Signature;
 import org.valross.foundation.detail.Type;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -21,9 +25,9 @@ public class MimicGenerator {
     protected final Type internal;
     protected final Class<?> top;
     protected final Class<?>[] interfaces;
-    protected final List<MethodErasure> finished;
+    protected final List<Member> finished;
     protected final MethodWriter handler;
-    protected final Map<MethodErasure, MethodWriter> overrides = new HashMap<>();
+    protected final Map<Member, MethodWriter> overrides = new HashMap<>();
     protected final Map<Member, Object> fields = new HashMap<>();
     protected ClassDefiner definer = new InternalAccess();
     protected int index;
@@ -49,6 +53,15 @@ public class MimicGenerator {
     public <Template> Template create(ClassLoader loader, MethodExecutor executor) {
         final boolean complex = !top.isInterface() || !overrides.isEmpty() || !fields.isEmpty();
         final byte[] bytecode = writeCode();
+        {// todo
+            final File file = new File("target/generated-mimic/" + top.getName() + ".class");
+            file.getParentFile().mkdirs();
+            try (OutputStream out = new FileOutputStream(file)) {
+                out.write(bytecode);
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            }
+        }
         final Class<?> type = definer.define(loader, internal.getTypeName(), bytecode);
         assert type != null;
         final Object object = this.allocateInstance(type);
@@ -56,10 +69,10 @@ public class MimicGenerator {
             for (Map.Entry<Member, Object> entry : fields.entrySet())
                 this.setField(object, entry.getKey().name(), entry.getValue());
             this.setField(object, "executor", executor);
-            this.setField(object, "methods", finished.toArray(new MethodErasure[0]));
+            this.setField(object, "methods", finished.toArray(new Member[0]));
         } else { // trivial
             this.putValue(object, 12, executor);
-            this.putValue(object, 16, finished.toArray(new MethodErasure[0]));
+            this.putValue(object, 16, finished.toArray(new Member[0]));
         }
         return (Template) object;
     }
@@ -72,7 +85,7 @@ public class MimicGenerator {
         this.writer.field().setModifiers(Access.PROTECTED, Access.TRANSIENT)
             .signature(new Signature("executor", MethodExecutor.class));
         this.writer.field().setModifiers(Access.PROTECTED, Access.TRANSIENT)
-            .signature(new Signature("methods", MethodErasure[].class));
+            .signature(new Signature("methods", Member[].class));
         for (final Member erasure : fields.keySet()) {
             this.writer.field().named(erasure.name()).signature(erasure.asFieldErasure());
         }
@@ -108,7 +121,7 @@ public class MimicGenerator {
             if (Modifier.isStatic(method.getModifiers())) continue;
             if (Modifier.isFinal(method.getModifiers())) continue;
             if (Modifier.isPrivate(method.getModifiers())) continue;
-            final MethodErasure erasure = new MethodErasure(method);
+            final Member erasure = new Member(method);
             if (finished.contains(erasure)) continue;
             this.finished.add(erasure);
             this.writeCaller(method);
@@ -129,7 +142,7 @@ public class MimicGenerator {
     }
 
     protected void writeCaller(Method method) {
-        final MethodErasure erasure = new MethodErasure(method);
+        final Member erasure = new Member(method);
         final MethodWriter writer;
         if (overrides.containsKey(erasure)) writer = this.overrides.get(erasure);
         else writer = this.handler;

@@ -2,6 +2,7 @@ package mx.kenzie.mimic;
 
 import sun.misc.Unsafe;
 
+import org.valross.foundation.detail.Member;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.*;
 import java.security.PrivilegedExceptionAction;
@@ -9,14 +10,14 @@ import java.security.ProtectionDomain;
 
 @SuppressWarnings("removal")
 public class InternalAccess implements ClassDefiner {
-    
+
     static final String LOCATION = "com.sun.proxy";
     static Object javaLangAccess;
     static Unsafe unsafe;
     static Method defineClass;
     static Method addExports0;
     static long offset;
-    
+
     static {
         try {
             final Class<?> secrets = Class.forName("jdk.internal.access.SharedSecrets", false, ClassLoader.getSystemClassLoader());
@@ -44,19 +45,19 @@ public class InternalAccess implements ClassDefiner {
             throw new RuntimeException(ex);
         }
     }
-    
+
     InternalAccess() {
     }
-    
+
     static void export(final Module module, final String namespace) {
         try {
-            addExports0.invoke(null, module, namespace, MethodErasure.class.getModule());
+            addExports0.invoke(null, module, namespace, Member.class.getModule());
         } catch (InvocationTargetException | IllegalAccessException e) {
             e.printStackTrace();
-            module.addExports(namespace, MethodErasure.class.getModule());
+            module.addExports(namespace, Member.class.getModule());
         }
     }
-    
+
     @SuppressWarnings("unchecked")
     static <Type> Type allocateInstance(Class<?> type) {
         try {
@@ -65,19 +66,19 @@ public class InternalAccess implements ClassDefiner {
             throw new RuntimeException(e);
         }
     }
-    
+
     static void put(Object target, long offset, Object value) {
         unsafe.putObject(target, offset, value);
     }
-    
+
     static Module getStrictModule(Class<?> top, Class<?>... interfaces) {
         if (!top.getModule().isExported(top.getPackageName())) return top.getModule();
         for (final Class<?> place : interfaces) {
             if (!place.getModule().isExported(place.getPackageName())) return place.getModule();
         }
-        return MethodErasure.class.getModule();
+        return Member.class.getModule();
     }
-    
+
     static String getStrictPackageName(Class<?> top, Class<?>... interfaces) {
         String namespace = LOCATION + ".mimic";
         if (top != null && !Modifier.isPublic(top.getModifiers())) namespace = top.getPackageName();
@@ -86,28 +87,28 @@ public class InternalAccess implements ClassDefiner {
         }
         return namespace;
     }
-    
+
     static long offset(Field field) {
         return unsafe.objectFieldOffset(field);
     }
-    
+
     static void moveModule(Class<?> from, Class<?> to) {
         unsafe.putObject(from, offset, to.getModule());
     }
-    
+
     public static Object getJavaLangAccess() {
         return javaLangAccess;
     }
-    
+
     public static Unsafe getUnsafe() {
         return unsafe;
     }
-    
+
     public static ClassDefiner createDefiner(Class<?> target) {
         try {
             final MethodHandles.Lookup lookup = MethodHandles.privateLookupIn(target, MethodHandles.lookup());
             class Definer implements ClassDefiner {
-                
+
                 @Override
                 public <Type> Type define(ClassLoader loader, String name, byte[] bytecode) {
                     try {
@@ -118,7 +119,7 @@ public class InternalAccess implements ClassDefiner {
                         return null;
                     }
                 }
-                
+
                 @Override
                 public String getPackage() {
                     return target.getPackageName();
@@ -131,13 +132,13 @@ public class InternalAccess implements ClassDefiner {
             return null;
         }
     }
-    
+
     @Override
     @SuppressWarnings({"unchecked"})
     public <Type> Type define(ClassLoader loader, String name, byte[] bytecode) {
         return (Type) loadClass(loader, name, bytecode);
     }
-    
+
     static Class<?> loadClass(ClassLoader loader, String name, byte[] bytes) {
         try {
             return (Class<?>) defineClass.invoke(javaLangAccess, loader, name, bytes, null, "__Mimic__");
